@@ -1,0 +1,591 @@
+{
+  "name": "Email Classifier",
+  "nodes": [
+    {
+      "id": "02b8be56-a205-487b-a012-99af47007cea",
+      "name": "Microsoft Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        300
+      ],
+      "parameters": {
+        "event": "messageReceived",
+        "filters": {},
+        "options": {},
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c837b909-adf3-495f-8cc0-b9ae770b84de",
+      "name": "Classify Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an email triage classifier for the inbox of a product manager in London who is actively job-hunting. Their inbox mixes job-search email (applications, recruiters, automated job-listing digests from LinkedIn/Indeed/etc) with personal and other email.\n\nClassify the email below into EXACTLY ONE category:\n\n- ACTION_NEEDED: Personal or other email that is NOT job-search-related and requires the user to do something (reply, pay, schedule, decide, etc).\n- JOB_CONFIRMATION: An automated \"we received your application\" acknowledgement from a company or applicant tracking system.\n- JOB_REJECTION: An explicit rejection of a job application (e.g. \"we've decided to move forward with other candidates\").\n- RECRUITER_REPLY: A human recruiter or hiring manager personally writing to the user - replying, reaching out, or scheduling - not an automated ATS message.\n- JOB_ALERT: An automated job-listing digest or alert, e.g. from LinkedIn, Indeed, or similar job boards.\n- FYI: Informational email that needs no action and isn't spam (newsletters the user actually reads, receipts, confirmations unrelated to jobs, etc).\n- IGNORE: Spam, marketing, or low-value automated notifications.\n\nEmail to classify:\nFrom: {{ $json.from?.emailAddress?.name || $json.from?.name || '' }} <{{ $json.from?.emailAddress?.address || $json.from?.address || '' }}>\nSubject: {{ $json.subject }}\nBody:\n{{ ((($json.body && $json.body.content) || $json.bodyPreview || '') + '').replace(/<[^>]+>/g, ' ').slice(0, 1500) }}\n\nRespond with:\n- category: exactly one of ACTION_NEEDED, JOB_CONFIRMATION, JOB_REJECTION, RECRUITER_REPLY, JOB_ALERT, FYI, IGNORE\n- confidence: integer 0-100, how sure you are of the category\n- summary: one tight sentence summarizing the email\n- suggested_task: a concrete next action for the user, ONLY if one clearly exists, otherwise null\n- company: the employer name if category is JOB_CONFIRMATION, JOB_REJECTION, or RECRUITER_REPLY and it's identifiable, otherwise null",
+        "hasOutputParser": true
+      }
+    },
+    {
+      "id": "7559d10b-0395-4952-b4ea-ded08bffa54d",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        540
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-haiku-4-5-20251001"
+        },
+        "options": {
+          "temperature": 0
+        }
+      }
+    },
+    {
+      "id": "40d1b0c5-3faf-4196-b709-bd10dd934a88",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        540
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"ACTION_NEEDED\",\n        \"JOB_CONFIRMATION\",\n        \"JOB_REJECTION\",\n        \"RECRUITER_REPLY\",\n        \"JOB_ALERT\",\n        \"FYI\",\n        \"IGNORE\"\n      ],\n      \"description\": \"The single best-fit category for this email\"\n    },\n    \"confidence\": {\n      \"type\": \"integer\",\n      \"minimum\": 0,\n      \"maximum\": 100,\n      \"description\": \"How confident the model is in the chosen category, 0-100\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"One tight sentence summarizing the email\"\n    },\n    \"suggested_task\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ],\n      \"description\": \"A concrete next action for the user, or null if none exists\"\n    },\n    \"company\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ],\n      \"description\": \"Employer name for JOB_CONFIRMATION, JOB_REJECTION, or RECRUITER_REPLY when identifiable, else null\"\n    }\n  },\n  \"required\": [\n    \"category\",\n    \"confidence\",\n    \"summary\",\n    \"suggested_task\",\n    \"company\"\n  ]\n}"
+      }
+    },
+    {
+      "id": "4db0628e-214b-4d64-af6a-4f0de8b2d4c5",
+      "name": "Log to Email Metrics",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_EMAIL_METRICS_LOG_DATABASE_ID"
+        },
+        "title": "={{ $json.output.summary }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Timestamp|date",
+              "date": "={{ $now.toISO() }}"
+            },
+            {
+              "key": "Category|select",
+              "selectValue": "={{ $json.output.category }}"
+            },
+            {
+              "key": "Confidence|number",
+              "numberValue": "={{ $json.output.confidence }}"
+            },
+            {
+              "key": "Suggested Task|rich_text",
+              "textContent": "={{ $json.output.suggested_task || '' }}"
+            },
+            {
+              "key": "Corrected|checkbox",
+              "checkboxValue": false
+            },
+            {
+              "key": "Auto-filed|checkbox",
+              "checkboxValue": "={{ $json.output.confidence >= 80 }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1a0bb87-81f3-450c-bebb-6ac55255b474",
+      "name": "Confidence >= 80?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $('Classify Email').item.json.output.confidence }}",
+              "rightValue": 80
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5da100fd-30ec-47b2-9c01-9bb0de2a81d0",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "ACTION_NEEDED",
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Classify Email').item.json.output.category }}",
+                    "rightValue": "ACTION_NEEDED"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "RECRUITER_REPLY",
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Classify Email').item.json.output.category }}",
+                    "rightValue": "RECRUITER_REPLY"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "JOB_CONFIRMATION",
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Classify Email').item.json.output.category }}",
+                    "rightValue": "JOB_CONFIRMATION"
+                  }
+                ]
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "JOB_REJECTION",
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Classify Email').item.json.output.category }}",
+                    "rightValue": "JOB_REJECTION"
+                  }
+                ]
+              },
+              "renameOutput": true
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1b011e4a-8d1b-40ad-9edc-af6e72b48b5d",
+      "name": "Create Daily Planner Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        120
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_DAILY_PLANNER_DATABASE_ID"
+        },
+        "title": "={{ $('Classify Email').item.json.output.suggested_task || $('Classify Email').item.json.output.summary }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Category|select",
+              "selectValue": "Email"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "39818965-4c12-4292-8e45-8dec1653f64f",
+      "name": "Create Job Search Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        -60
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_SEARCH_TASKS_DATABASE_ID"
+        },
+        "title": "={{ $('Classify Email').item.json.output.suggested_task || $('Classify Email').item.json.output.summary }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Company|rich_text",
+              "textContent": "={{ $('Classify Email').item.json.output.company }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "36bdc92f-473c-4718-b988-57ca5bd97134",
+      "name": "Create Job Application",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "title": "={{ $('Classify Email').item.json.output.company || 'Unknown' }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "Applied"
+            },
+            {
+              "key": "Applied Date|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "={{ $('Classify Email').item.json.output.summary }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b58879da-5993-4455-8d59-8878bc59a9b6",
+      "name": "Find Job Application",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        480
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "filterType": "manual",
+        "limit": 1,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "key": "Company|title",
+              "condition": "contains",
+              "titleValue": "={{ $('Classify Email').item.json.output.company }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "712e1fda-7b00-4e53-8f53-eaccf26248cf",
+      "name": "Match Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7bf48a15-9124-4573-b41c-336a0d910fa8",
+      "name": "Update Job Application",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        480
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "Rejected"
+            },
+            {
+              "key": "Reply Received|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Microsoft Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Email Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Email Metrics": {
+      "main": [
+        [
+          {
+            "node": "Confidence >= 80?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence >= 80?": {
+      "main": [
+        [
+          {
+            "node": "Route by Category",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [
+          {
+            "node": "Create Daily Planner Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Job Search Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Job Application",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Job Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Job Application": {
+      "main": [
+        [
+          {
+            "node": "Match Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Found?": {
+      "main": [
+        [
+          {
+            "node": "Update Job Application",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

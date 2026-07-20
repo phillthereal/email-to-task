@@ -1,0 +1,135 @@
+{
+  "name": "Follow-up Scheduler",
+  "nodes": [
+    {
+      "id": "2bc39fa3-919d-4dc4-be3a-75ede126f19e",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -120,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "57960728-1113-453d-b6f1-4abcfcc4a7ee",
+      "name": "Get Tracker Rows",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "returnAll": true,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f25bd499-6647-4775-91de-b146bb9099d4",
+      "name": "Compute Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Emits one item per job-application row that needs a follow-up task today.\n// Exact-day matching only, so each row fires exactly once (no <= comparisons\n// that would re-fire on every subsequent day).\n\n// The Notion node's simplified output flattens every property to\n// `property_` + lowercase name (spaces -> underscores); the title property\n// also appears as top-level `name`. dval() normalizes date properties,\n// which can come back either as a plain ISO string or as an object like\n// { start, end, time_zone }.\nconst dval = (v) => (v && typeof v === 'object') ? (v.start ?? null) : (v || null);\n\nconst rows = $input.all();\n\nconst today = $now.setZone('Europe/London').startOf('day');\nconst yesterday = today.minus({ days: 1 });\nconst sixDaysAgo = today.minus({ days: 6 });\n\nfunction isExactDay(rawDate, target) {\n  const dateStr = dval(rawDate);\n  if (!dateStr) return false;\n  const d = DateTime.fromISO(String(dateStr), { zone: 'Europe/London' }).startOf('day');\n  if (!d.isValid) return false;\n  return d.hasSame(target, 'day');\n}\n\nconst results = [];\n\nfor (const item of rows) {\n  const row = item.json;\n  const company = row.name || row.property_company || 'Unknown';\n  const outreachSent = dval(row.property_outreach_sent);\n  const replyReceived = dval(row.property_reply_received);\n\n  if (isExactDay(row.property_applied_date, yesterday) && !outreachSent) {\n    results.push({ json: { title: `Message hiring manager - ${company}`, company } });\n  }\n\n  if (isExactDay(row.property_outreach_sent, sixDaysAgo) && !replyReceived) {\n    results.push({ json: { title: `Second touch or close - ${company}`, company } });\n  }\n}\n\nreturn results;\n"
+      }
+    },
+    {
+      "id": "3beeb93c-ed7a-4549-b358-403c1440e7d7",
+      "name": "Create Job Search Task",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_SEARCH_TASKS_DATABASE_ID"
+        },
+        "title": "={{ $json.title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Date|date",
+              "date": "={{ $now.setZone('Europe/London').format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Company|rich_text",
+              "textContent": "={{ $json.company }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Tracker Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tracker Rows": {
+      "main": [
+        [
+          {
+            "node": "Compute Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Create Job Search Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London"
+  }
+}
