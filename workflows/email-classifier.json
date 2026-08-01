@@ -1,5 +1,5 @@
 {
-  "name": "Email Classifier",
+  "name": "Email Classifier v4",
   "nodes": [
     {
       "id": "02b8be56-a205-487b-a012-99af47007cea",
@@ -23,6 +23,38 @@
             }
           ]
         }
+      }
+    },
+    {
+      "id": "2ae998c9-7f1a-4441-9a06-9f1e166824be",
+      "name": "Skip Digest Email",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        30,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "Job search digest"
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
@@ -116,7 +148,7 @@
             },
             {
               "key": "Auto-filed|checkbox",
-              "checkboxValue": "={{ $json.output.confidence >= 80 }}"
+              "checkboxValue": "={{ ['JOB_CONFIRMATION','JOB_REJECTION','RECRUITER_REPLY'].includes($json.output.category) ? $json.output.confidence >= 70 : $json.output.confidence >= 80 }}"
             }
           ]
         },
@@ -148,7 +180,7 @@
                 "operation": "gte"
               },
               "leftValue": "={{ $('Classify Email').item.json.output.confidence }}",
-              "rightValue": 80
+              "rightValue": "={{ ['JOB_CONFIRMATION','JOB_REJECTION','RECRUITER_REPLY'].includes($('Classify Email').item.json.output.category) ? 70 : 80 }}"
             }
           ]
         },
@@ -254,6 +286,28 @@
                 ]
               },
               "renameOutput": true
+            },
+            {
+              "outputKey": "JOB_ALERT",
+              "conditions": {
+                "options": {
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Classify Email').item.json.output.category }}",
+                    "rightValue": "JOB_ALERT"
+                  }
+                ]
+              },
+              "renameOutput": true
             }
           ]
         },
@@ -287,6 +341,10 @@
             {
               "key": "Category|select",
               "selectValue": "Email"
+            },
+            {
+              "key": "Email|url",
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
             }
           ]
         },
@@ -320,6 +378,10 @@
             {
               "key": "Company|rich_text",
               "textContent": "={{ $('Classify Email').item.json.output.company }}"
+            },
+            {
+              "key": "Email|url",
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
             }
           ]
         },
@@ -392,7 +454,8 @@
           ]
         },
         "options": {}
-      }
+      },
+      "alwaysOutputData": true
     },
     {
       "id": "712e1fda-7b00-4e53-8f53-eaccf26248cf",
@@ -418,7 +481,7 @@
                 "type": "string",
                 "operation": "notEmpty"
               },
-              "leftValue": "={{ $json.id }}",
+              "leftValue": "={{ $json.id || '' }}",
               "rightValue": ""
             }
           ]
@@ -457,10 +520,430 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "a7191ce1-2471-4414-9ff7-d8db6c7a270e",
+      "name": "Company Known?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        660
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "leftValue": "={{ $('Classify Email').item.json.output.company || '' }}",
+              "rightValue": ""
+            },
+            {
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "leftValue": "={{ $('Classify Email').item.json.output.company || '' }}",
+              "rightValue": "Unknown"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8a30512b-d558-4ab0-863d-0b74598636f5",
+      "name": "Create Rejection Tracker Row",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        660
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "title": "={{ $('Classify Email').item.json.output.company }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "Rejected"
+            },
+            {
+              "key": "Reply Received|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "={{ $('Classify Email').item.json.output.summary }} (auto-created from rejection email; no prior application row)"
+            },
+            {
+              "key": "Job Link|url",
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "09bb5f77-f33d-4f6f-97ca-f017c0bd771d",
+      "name": "Get Full Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        900
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.microsoft.com/v1.0/me/messages/{{ (() => { try { return $('Microsoft Outlook Trigger').item.json.id; } catch (e) { return $json.body?.id; } })() }}?$select=subject,body",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {}
+      }
+    },
+    {
+      "id": "dfe0ee68-b3c9-418c-ac73-a38f18d4309a",
+      "name": "Split Job Cards",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        900
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const html = $json.body?.content || $json.bodyPreview || '';\n\n// Listings are delimited by data-test-id=\"job-card\" (measured: 6 per digest email)\nconst parts = html.split('data-test-id=\"job-card\"').slice(1);\n\nconst seen = new Set();\nconst cards = [];\nfor (const part of parts) {\n  const urlMatch = part.match(/linkedin\\.com\\/comm\\/jobs\\/view\\/(\\d+)/);\n  if (!urlMatch) continue;\n  const jobId = urlMatch[1];\n  if (seen.has(jobId)) continue;\n  seen.add(jobId);\n  // NOTE: field named listing_url (not url) - Notion getAll responses have\n  // their own 'url' property (the Notion page URL); colliding names would be\n  // clobbered when this item is merged with a Notion response downstream.\n  const listingUrl = `https://www.linkedin.com/jobs/view/${jobId}/`;\n  const cardText = part\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 1200);\n  cards.push({ job_id: jobId, listing_url: listingUrl, card_text: cardText });\n}\nreturn [{ json: { cards } }];\n"
+      }
+    },
+    {
+      "id": "f4a1e8c2-9b3d-4e7f-a1c6-3d8b2e9f0a17",
+      "name": "Get Existing Titles",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1820,
+        900
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "filterType": "none",
+        "limit": 500,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_OPPORTUNITIES_DATABASE_ID"
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "d5e7f9a1-4b6c-4d8e-9f0a-1b2c3d4e5f6a",
+      "name": "Collect Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        1100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const existingRows = $input.all().map(item => ({\n  title: item.json.property_job || item.json.Job || '',\n  company: item.json.property_company || item.json.Company || ''\n})).filter(r => r.title || r.company);\n\nconst cards = $('Split Job Cards').item.json.cards;\nreturn [{ json: { cards, existing_rows: existingRows } }];\n"
+      }
+    },
+    {
+      "id": "3f8a1c22-9b4e-4a7d-8c5f-2e6b9d0a1f44",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2600,
+        900
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "cae17401-14e4-4e86-867b-125c0e15e4ae",
+      "name": "Check Existing Job",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        900
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "filterType": "manual",
+        "limit": 1,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_OPPORTUNITIES_DATABASE_ID"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "key": "Job ID|rich_text",
+              "condition": "equals",
+              "richTextValue": "={{ $json.job_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "5eb2bbc5-351d-4234-9504-2875118ba5fc",
+      "name": "Not Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        900
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              },
+              "leftValue": "={{ $json.id || '' }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c31a7f97-011d-489e-83b5-b95097195c05",
+      "name": "Score All Listings",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        2080,
+        700
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are processing every job listing from ONE LinkedIn job-alert digest email for a single candidate. For each listing: extract structured fields, then score fit 0-100 COMPARATIVELY against the other listings in this same batch - not in isolation.\n\nCandidate profile: YOUR_CANDIDATE_PROFILE — 1-2 sentences describing your current role, key strengths, the role types to FAVOUR and to DEMOTE, and your target location and seniority.\n\nCalibration bands - use these as anchors, not vibes:\n- 90-100: near-perfect. Consulting-to-tech bridge role, right level, London. He would regret not applying.\n- 75-89: strong. Clear bridge role worth applying to this week.\n- 60-74: plausible. Adjacent or partial fit, apply if time permits.\n- 40-59: weak. Wrong level, tangential domain, or heavy technical slant.\n- 0-39: poor. Hands-on engineering, wrong field, or far too senior.\n\nYou are scoring these listings AS A SET. Differentiate between them: no more than two listings in this batch may share the same score, and you should use the full range where the listings actually warrant it. Most job-alert listings are mediocre matches - LOW SCORES ARE THE CORRECT, EXPECTED ANSWER for them. Do not inflate scores to manufacture spread that isn't warranted by the real content - if every listing genuinely is mediocre, most scores should genuinely land in the 40-60 range. It is normal and expected for an entire batch to contain zero listings scoring 85+; report honestly, do not chase a high score.\n\nFor each listing also extract:\n- title: the job title\n- company: the hiring company name\n- location: the location as shown (e.g. city, remote/hybrid note)\n- salary_raw: the salary EXACTLY as written in the card, including its unit (e.g. \"£35K-£45K\", \"£500-£550\" which may be a day rate) - copy verbatim, do not calculate or convert anything. If no salary is mentioned, return null. NEVER invent a salary.\n- seniority: your best-guess seniority level inferred from the title alone (e.g. Entry, Associate, Mid, Senior, Lead/Manager), or null if unclear\n\nListings in this email:\n\n{{ $json.cards.map((c, i) => 'Listing ' + (i + 1) + ':\\n' + c.card_text).join('\\n\\n---\\n\\n') }}\n\nReturn one entry per listing above, in the \"listings\" array, each tagged with listing_index (1-based, matching its position above) so results can be matched back to the right listing.",
+        "hasOutputParser": true
+      }
+    },
+    {
+      "id": "be432c82-2a8e-4d53-826e-b392dfd88cf5",
+      "name": "Score All Listings Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2080,
+        500
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\": \"object\", \"properties\": {\"listings\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"listing_index\": {\"type\": \"integer\", \"description\": \"1-based index matching the listing's position in the prompt\"}, \"title\": {\"type\": \"string\", \"description\": \"The job title\"}, \"company\": {\"type\": \"string\", \"description\": \"The hiring company name\"}, \"location\": {\"type\": \"string\", \"description\": \"Location as shown on the listing\"}, \"salary_raw\": {\"type\": [\"string\", \"null\"], \"description\": \"Salary exactly as written including unit, or null if absent. Never fabricated or converted.\"}, \"seniority\": {\"type\": [\"string\", \"null\"], \"description\": \"Inferred seniority level, or null if unclear\"}, \"fit_score\": {\"type\": \"integer\", \"minimum\": 0, \"maximum\": 100, \"description\": \"0-100 fit score, scored comparatively against the rest of the batch\"}, \"why\": {\"type\": \"string\", \"description\": \"One tight sentence explaining the score\"}}, \"required\": [\"listing_index\", \"title\", \"company\", \"location\", \"salary_raw\", \"seniority\", \"fit_score\", \"why\"]}}}, \"required\": [\"listings\"]}"
+      }
+    },
+    {
+      "id": "d0929f8a-5864-489a-a1e7-ea3b79de9811",
+      "name": "Anthropic Chat Model (Alerts)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2080,
+        340
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-haiku-4-5-20251001"
+        },
+        "options": {
+          "temperature": 0
+        }
+      }
+    },
+    {
+      "id": "a2b4c6d8-1e3f-4a5b-8c7d-9e0f1a2b3c4d",
+      "name": "Split Scored Listings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        900
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "function normTitle(t) {\n  return (t || '').toLowerCase().replace(/\\s+/g, ' ').trim();\n}\nfunction normCompany(c) {\n  return (c || '').toLowerCase()\n    .replace(/\\b(ltd|limited|plc|group|inc|llc|co|corporation|corp)\\b\\.?/g, '')\n    .replace(/[.,]/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n// \"Weatherbys Private Bank\" vs \"Weatherbys Ltd\" only share a normalised\n// prefix after suffix-stripping ('weatherbys private bank' vs 'weatherbys'),\n// not the full string - exact-match on the normalised pair missed this live\n// case entirely. Substring containment on the normalised names is the\n// smallest fix that still catches it without pulling in a fuzzy-match lib.\nfunction companiesMatch(a, b) {\n  const na = normCompany(a), nb = normCompany(b);\n  if (!na || !nb) return false;\n  return na === nb || na.includes(nb) || nb.includes(na);\n}\n\nconst listings = $json.output.listings || [];\nconst cards = $('Collect Context').item.json.cards;\nconst existingRows = $('Collect Context').item.json.existing_rows;\n\nconst kept = []; // { title, company } already emitted, for within-batch check\nconst results = [];\nfor (const entry of listings) {\n  const card = cards[entry.listing_index - 1];\n  if (!card) continue;\n  const t = normTitle(entry.title);\n  const isDup = kept.some(k => k.t === t && companiesMatch(k.company, entry.company));\n  if (isDup) continue; // same role posted twice in this email\n  kept.push({ t, company: entry.company });\n  results.push({\n    json: {\n      job_id: card.job_id,\n      listing_url: card.listing_url,\n      title: entry.title,\n      company: entry.company,\n      location: entry.location,\n      salary_raw: entry.salary_raw,\n      seniority: entry.seniority,\n      fit_score: entry.fit_score,\n      why: entry.why,\n      existing_rows: existingRows\n    }\n  });\n}\nreturn results;\n"
+      }
+    },
+    {
+      "id": "b3c5d7e9-2f4a-4b6c-9d8e-0f1a2b3c4d5e",
+      "name": "Near-Dup Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3380,
+        900
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "function normTitle(t) {\n  return (t || '').toLowerCase().replace(/\\s+/g, ' ').trim();\n}\nfunction normCompany(c) {\n  return (c || '').toLowerCase()\n    .replace(/\\b(ltd|limited|plc|group|inc|llc|co|corporation|corp)\\b\\.?/g, '')\n    .replace(/[.,]/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n// Same substring-containment rule as Split Scored Listings, so a role that\n// slipped through under one company-name variant this week still matches an\n// existing row filed under a slightly different variant last week.\nfunction companiesMatch(a, b) {\n  const na = normCompany(a), nb = normCompany(b);\n  if (!na || !nb) return false;\n  return na === nb || na.includes(nb) || nb.includes(na);\n}\n\nconst myTitle = normTitle($json.title);\n// existing_rows was carried forward from Collect Context, not looked up\n// cross-node here - avoids depending on a node executing in another branch.\nconst existing = $json.existing_rows || [];\n\nlet isDup = false;\nfor (const r of existing) {\n  if (!r.title && !r.company) continue;\n  if (normTitle(r.title) === myTitle && companiesMatch(r.company, $json.company)) {\n    isDup = true;\n    break;\n  }\n}\n\nreturn { json: { ...$json, is_near_duplicate: isDup } };\n"
+      }
+    },
+    {
+      "id": "c4d6e8f0-3a5b-4c7d-8e9f-1a2b3c4d5e6f",
+      "name": "Not Near-Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3640,
+        900
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.is_near_duplicate ? 'dup' : 'ok' }}",
+              "rightValue": "ok"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "236b205e-4830-4d7a-973a-f6c75021b618",
+      "name": "Create Job Row",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3900,
+        900
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_OPPORTUNITIES_DATABASE_ID"
+        },
+        "title": "={{ $json.title }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Company|rich_text",
+              "textContent": "={{ $json.company }}"
+            },
+            {
+              "key": "Location|rich_text",
+              "textContent": "={{ $json.location }}"
+            },
+            {
+              "key": "Salary|rich_text",
+              "textContent": "={{ $json.salary_raw || '' }}"
+            },
+            {
+              "key": "Fit Score|number",
+              "numberValue": "={{ $json.fit_score }}"
+            },
+            {
+              "key": "Why|rich_text",
+              "textContent": "={{ $json.why }}"
+            },
+            {
+              "key": "URL|url",
+              "urlValue": "={{ $json.listing_url }}"
+            },
+            {
+              "key": "Job ID|rich_text",
+              "textContent": "={{ $json.job_id }}"
+            },
+            {
+              "key": "Source|select",
+              "selectValue": "LinkedIn Alert"
+            },
+            {
+              "key": "Seniority|rich_text",
+              "textContent": "={{ $json.seniority || '' }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "New"
+            },
+            {
+              "key": "First Seen|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
     "Microsoft Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Skip Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Digest Email": {
       "main": [
         [
           {
@@ -556,6 +1039,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Get Full Email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -579,13 +1069,198 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Company Known?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Known?": {
+      "main": [
+        [
+          {
+            "node": "Create Rejection Tracker Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Full Email": {
+      "main": [
+        [
+          {
+            "node": "Split Job Cards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Job Cards": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Titles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Titles": {
+      "main": [
+        [
+          {
+            "node": "Collect Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Context": {
+      "main": [
+        [
+          {
+            "node": "Score All Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score All Listings": {
+      "main": [
+        [
+          {
+            "node": "Split Scored Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Scored Listings": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Check Existing Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Job": {
+      "main": [
+        [
+          {
+            "node": "Not Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Near-Dup Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Near-Dup Check": {
+      "main": [
+        [
+          {
+            "node": "Not Near-Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Near-Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Create Job Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Job Row": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model (Alerts)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score All Listings",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score All Listings Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Score All Listings",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
       ]
     }
   },
-  "active": false,
   "settings": {
-    "executionOrder": "v1"
-  },
-  "pinData": {}
+    "executionOrder": "v1",
+    "timezone": "Europe/London"
+  }
 }

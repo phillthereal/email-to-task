@@ -8,11 +8,12 @@ Every 5 minutes, an Outlook trigger polls for new mail. Each message is classifi
 
 ## Workflows
 
-**`workflows/email-classifier.json`** — Outlook Trigger (5 min poll) → Classify Email → log to Email Metrics → confidence gate (≥80) → switch on category:
+**`workflows/email-classifier.json`** (v4) — Outlook Trigger (5 min poll, skips the digest email itself by subject) → Classify Email → log to Email Metrics → confidence gate (≥80, or ≥70 for `JOB_CONFIRMATION`/`JOB_REJECTION`/`RECRUITER_REPLY`) → switch on category:
 - `ACTION_NEEDED` → Daily Planner (tagged `Category = Email`)
 - `RECRUITER_REPLY` → Job Search Tasks
 - `JOB_CONFIRMATION` → Job Application Tracker (new row, `Status = Applied`)
-- `JOB_REJECTION` → find the matching tracker row and update it (`Status = Rejected`, `Reply Received = today`)
+- `JOB_REJECTION` → find the matching tracker row and update it (`Status = Rejected`, `Reply Received = today`), or create one if no prior application row exists and the company is known
+- `JOB_ALERT` → mines LinkedIn job-alert emails for job listings. The Outlook trigger only returns `bodyPreview`, so a direct Microsoft Graph call (`Get Full Email`) fetches the full HTML body; job cards are split out of the email by their `data-test-id="job-card"` marker. All listings from one email are scored COMPARATIVELY in a single LLM call — cheaper than a per-item fan-out, and it avoids the ambiguity of judging one listing at a time with no basis for comparison. Results are deduped by job id (exact, within the batch and against existing rows) and by fuzzy title+company match (against existing rows) before rows are created in Job Opportunities.
 
 **`workflows/follow-up-scheduler.json`** — runs daily at 08:00. Pulls tracker rows and, in a Code node, flags rows where `Applied Date` was **exactly** yesterday with no outreach sent, or outreach was sent **exactly** 6 days ago with no reply — then creates a Job Search Tasks entry per flagged row. Exact-day matching, not "on or before", ensures each condition fires once per row, ever, instead of re-firing daily until acted on.
 
