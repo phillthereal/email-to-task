@@ -1,0 +1,346 @@
+{
+  "name": "Applied Sync",
+  "nodes": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        260
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "job-applied",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1e082310-3c65-44df-ae65-26745d292a53",
+      "webhookId": "fb272c2d-b50f-4da1-a0cd-94aa48411cde"
+    },
+    {
+      "name": "Job Id Provided?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        260
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "leftValue": "={{ ($json.query.job || '').trim() }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65a2aa58-2905-4d40-bf3c-630af312a54b"
+    },
+    {
+      "name": "Update Job Status",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        140
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.query.job }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "selectValue": "Applied"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f715674-359a-46f0-b30d-945d543024e9"
+    },
+    {
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        140
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ \"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><meta name=\\\"viewport\\\" content=\\\"width=device-width,initial-scale=1\\\"><title>Marked as applied</title></head><body style=\\\"margin:0;padding:48px 20px;background:#f9fafb;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;\\\"><div style=\\\"max-width:420px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;padding:28px;text-align:center;\\\"><div style=\\\"font-size:34px;line-height:1;\\\">&#9989;</div><div style=\\\"font-size:18px;font-weight:700;color:#15803d;margin-top:12px;\\\">Marked as applied</div><div style=\\\"font-size:14px;color:#4b5563;margin-top:10px;line-height:1.5;\\\">__JOB__moves to <b>Applied</b> in Job Opportunities and drops out of next week&rsquo;s matches. The tracker row is created by the next daily sync (12:00). You can close this tab.</div></div></body></html>\".replace('__JOB__', $json.name ? '<b>' + $json.name + '</b> &mdash; it ' : 'It ') }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7393891a-9a6c-4964-846e-8b75f97b62b2"
+    },
+    {
+      "name": "Missing Job Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        380
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>No job id</title></head><body style=\"margin:0;padding:48px 20px;background:#f9fafb;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;\"><div style=\"max-width:420px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;padding:28px;text-align:center;\"><div style=\"font-size:34px;line-height:1;\">&#9888;&#65039;</div><div style=\"font-size:18px;font-weight:700;color:#b45309;margin-top:12px;\">No job id supplied</div><div style=\"font-size:14px;color:#4b5563;margin-top:10px;line-height:1.5;\">That link was missing its job id, so nothing was changed. Open the job in Notion and set Status to Applied by hand.</div></div></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "62e771ca-73e6-4cb8-830a-c55209fff7d3"
+    },
+    {
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        700
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 12,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "1bcf574e-2cbf-4017-812f-8f09473ba06a"
+    },
+    {
+      "name": "Get Job Opportunities",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        700
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "returnAll": true,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_OPPORTUNITIES_DATABASE_ID"
+        },
+        "options": {}
+      },
+      "id": "1ff56400-6bfc-48c0-8872-b4f2dc8cd790"
+    },
+    {
+      "name": "Get Application Tracker Rows",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        700
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "returnAll": true,
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "options": {}
+      },
+      "id": "2f5f5c18-ad64-4d9b-86d0-67be0e0d7f2b"
+    },
+    {
+      "name": "Find Unsynced Applied Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        700
+      ],
+      "parameters": {
+        "jsCode": "const jobOpps = $('Get Job Opportunities').all();\nconst trackerRows = $('Get Application Tracker Rows').all();\n\nfunction normUrl(url) {\n  if (!url) return '';\n  let u = String(url).trim().toLowerCase();\n  u = u.split('?')[0].split('#')[0];\n  u = u.replace(/\\/+$/, '');\n  return u;\n}\n\nfunction normText(s) {\n  return String(s || '').trim().toLowerCase().replace(/\\s+/g, ' ');\n}\n\nfunction selectName(v) {\n  if (v == null) return '';\n  if (typeof v === 'object') return v.name || v.value || '';\n  return String(v);\n}\n\nconst trackerUrls = new Set();\nconst trackerCompanyRole = new Set();\nfor (const row of trackerRows) {\n  const j = row.json;\n  const link = normUrl(j.property_job_link);\n  if (link) trackerUrls.add(link);\n  const company = normText(j.name || j.property_company);\n  const role = normText(j.property_role);\n  trackerCompanyRole.add(`${company}|${role}`);\n}\n\nconst results = [];\nfor (const job of jobOpps) {\n  const j = job.json;\n  const status = selectName(j.property_status);\n  if (status !== 'Applied') continue;\n\n  const company = normText(j.property_company);\n  if (!company) continue; // skip blank company - would create blank tracker title\n\n  const role = normText(j.name || j.property_job);\n  const url = normUrl(j.property_url);\n\n  const urlMatch = url && trackerUrls.has(url);\n  const companyRoleMatch = trackerCompanyRole.has(`${company}|${role}`);\n  if (urlMatch || companyRoleMatch) continue;\n\n  results.push({\n    json: {\n      company: j.property_company,\n      role: j.name || j.property_job || '',\n      jobLink: j.property_url || '',\n      notes: 'Auto-synced from Job Opportunities (marked Applied).'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "3f7108df-9a6a-4f76-a455-d5365fe6f500"
+    },
+    {
+      "name": "Create Tracker Row",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        700
+      ],
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_JOB_APPLICATION_TRACKER_DATABASE_ID"
+        },
+        "title": "={{ $json.company }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Role|rich_text",
+              "textContent": "={{ $json.role }}"
+            },
+            {
+              "key": "Status|select",
+              "selectValue": "Applied"
+            },
+            {
+              "key": "Applied Date|date",
+              "date": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Job Link|url",
+              "urlValue": "={{ $json.jobLink }}"
+            },
+            {
+              "key": "Notes|rich_text",
+              "textContent": "={{ $json.notes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3e79f2ec-85a4-4232-bb39-180ca5ecac6e"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Job Id Provided?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Id Provided?": {
+      "main": [
+        [
+          {
+            "node": "Update Job Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Missing Job Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Job Status": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Job Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Job Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Get Application Tracker Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Application Tracker Rows": {
+      "main": [
+        [
+          {
+            "node": "Find Unsynced Applied Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Unsynced Applied Jobs": {
+      "main": [
+        [
+          {
+            "node": "Create Tracker Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London"
+  }
+}
