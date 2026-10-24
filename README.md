@@ -8,7 +8,7 @@ Every 5 minutes, an Outlook trigger polls for new mail. Each message is classifi
 
 ## Workflows
 
-**`workflows/email-classifier.json`** (v4) — Outlook Trigger (5 min poll, skips the digest email itself by subject) → Classify Email → log to Email Metrics → confidence gate (≥80, or ≥70 for `JOB_CONFIRMATION`/`JOB_REJECTION`/`RECRUITER_REPLY`) → switch on category:
+**`workflows/email-classifier.json`** (v5, see [below](#v5-cheapest-first-chain)) — Outlook Trigger (5 min poll, skips the digest email itself by subject) → classification chain → log to Email Metrics → confidence gate (≥80, or ≥70 for `JOB_CONFIRMATION`/`JOB_REJECTION`/`RECRUITER_REPLY`) → switch on category:
 - `ACTION_NEEDED` → Daily Planner (tagged `Category = Email`)
 - `RECRUITER_REPLY` → Job Search Tasks
 - `JOB_CONFIRMATION` → Job Application Tracker (new row, `Status = Applied`)
@@ -20,6 +20,24 @@ Every 5 minutes, an Outlook trigger polls for new mail. Each message is classifi
 **`workflows/monday-digest.json`** — runs Mondays at 12:00. Pulls all five databases (including Job Opportunities), aggregates the trailing 7 days (applications submitted, outreach sent, replies received, tasks overdue per task database, classification volume, and an all-time low-confidence rate with a link to the review queue), and emails the summary via Outlook. The email also leads with a hero section: a spotlight job (fit score ≥ 85) plus up to 5 further matches (fit score ≥ 60) from the trailing 7 days, each with an Apply link and an "I applied" link.
 
 **`workflows/applied-sync.json`** — two entry points, one write path for marking a job applied. See [Apply tracking](#apply-tracking) below.
+
+## v5: cheapest-first chain
+
+`email-classifier.json` now classifies with a chain that tries the cheapest decision first and only pays for an LLM when it has to:
+
+```
+email -> sender rules -> Jev decision model (p >= 0.9) -> LLM fallback
+          (exact address)   (not protected)              (everything else)
+```
+
+- **Sender rules**: a plain map of known automated senders to `JOB_ALERT` / `IGNORE`. The shipped map is three fake examples; load your own.
+- **Jev decision model**: a hosted classifier driven by a rulebook. It decides only when its top probability is >= 0.9.
+- **Protected categories** (`ACTION_NEEDED`, `JOB_CONFIRMATION`, `JOB_REJECTION`, `RECRUITER_REPLY`) always go to the fallback LLM, because they create tasks or tracker rows.
+- Every result carries `decided_by` (`rule` / `jev` / `fallback`), so errors can be traced to a stage.
+- **Corrections button**: `workflows/category-correction.json` is a webhook behind a "wrong category?" link in the digest; it fixes the metrics row.
+- A weekly gated review that proposes rulebook updates exists in the live setup but is not in this repo.
+
+Pre-release numbers (aggregates only): rules + decision model handled 62% of unseen emails with no paid model. A replay of 23 emails: rules 5/5, Jev 7/7, fallback 10/11, and 0 important emails decided by the cheap stages. Details: [phillthereal/ai-workload-router](https://github.com/phillthereal/ai-workload-router).
 
 ## Notion schema
 
@@ -38,9 +56,9 @@ A filtered view on Email Metrics Log (`Confidence < 80`) doubles as the manual r
 1. Create the five Notion databases above and share them with your n8n Notion integration.
 2. In each JSON, replace the `YOUR_..._DATABASE_ID` placeholders with your real database IDs, and `you@example.com` with your own address.
 3. Import each JSON into n8n (Workflows → Import from File).
-4. Re-attach credentials: Outlook, Anthropic, Notion — stripped from the exported JSON.
+4. Re-attach credentials: Outlook, OpenAI, Jev (HTTP header auth), Notion — stripped from the exported JSON.
 5. If your n8n is not at `http://localhost:5678`, update the "I applied" link base URL, which is hardcoded in the digest's `Aggregate Weekly Digest` code node (search for `webhook/job-applied`). A wrong base URL produces links that fail silently when clicked.
-6. Activate all four workflows.
+6. Activate all workflows.
 
 ## Apply tracking
 

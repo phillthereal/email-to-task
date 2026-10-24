@@ -1,5 +1,5 @@
 {
-  "name": "Email Classifier v4",
+  "name": "Email Classifier v5",
   "nodes": [
     {
       "id": "02b8be56-a205-487b-a012-99af47007cea",
@@ -59,33 +59,34 @@
     },
     {
       "id": "c837b909-adf3-495f-8cc0-b9ae770b84de",
-      "name": "Classify Email",
+      "name": "Fallback Classify",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.4,
       "position": [
-        180,
+        1480,
         300
       ],
       "parameters": {
         "promptType": "define",
-        "text": "=You are an email triage classifier for the inbox of a product manager in London who is actively job-hunting. Their inbox mixes job-search email (applications, recruiters, automated job-listing digests from LinkedIn/Indeed/etc) with personal and other email.\n\nClassify the email below into EXACTLY ONE category:\n\n- ACTION_NEEDED: Personal or other email that is NOT job-search-related and requires the user to do something (reply, pay, schedule, decide, etc).\n- JOB_CONFIRMATION: An automated \"we received your application\" acknowledgement from a company or applicant tracking system.\n- JOB_REJECTION: An explicit rejection of a job application (e.g. \"we've decided to move forward with other candidates\").\n- RECRUITER_REPLY: A human recruiter or hiring manager personally writing to the user - replying, reaching out, or scheduling - not an automated ATS message.\n- JOB_ALERT: An automated job-listing digest or alert, e.g. from LinkedIn, Indeed, or similar job boards.\n- FYI: Informational email that needs no action and isn't spam (newsletters the user actually reads, receipts, confirmations unrelated to jobs, etc).\n- IGNORE: Spam, marketing, or low-value automated notifications.\n\nEmail to classify:\nFrom: {{ $json.from?.emailAddress?.name || $json.from?.name || '' }} <{{ $json.from?.emailAddress?.address || $json.from?.address || '' }}>\nSubject: {{ $json.subject }}\nBody:\n{{ ((($json.body && $json.body.content) || $json.bodyPreview || '') + '').replace(/<[^>]+>/g, ' ').slice(0, 1500) }}\n\nRespond with:\n- category: exactly one of ACTION_NEEDED, JOB_CONFIRMATION, JOB_REJECTION, RECRUITER_REPLY, JOB_ALERT, FYI, IGNORE\n- confidence: integer 0-100, how sure you are of the category\n- summary: one tight sentence summarizing the email\n- suggested_task: a concrete next action for the user, ONLY if one clearly exists, otherwise null\n- company: the employer name if category is JOB_CONFIRMATION, JOB_REJECTION, or RECRUITER_REPLY and it's identifiable, otherwise null",
+        "text": "=You are an email triage classifier for the inbox of a person who is actively job-hunting. Their inbox mixes job-search email (applications, recruiters, automated job-listing digests from LinkedIn/Indeed/etc) with personal and other email.\n\nClassify the email below into EXACTLY ONE category:\n\n- ACTION_NEEDED: Personal or other email that is NOT job-search-related and requires the user to do something (reply, pay, schedule, decide, etc).\n- JOB_CONFIRMATION: An automated \"we received your application\" acknowledgement from a company or applicant tracking system.\n- JOB_REJECTION: An explicit rejection of a job application (e.g. \"we've decided to move forward with other candidates\").\n- RECRUITER_REPLY: A human recruiter or hiring manager personally writing to the user - replying, reaching out, or scheduling - not an automated ATS message.\n- JOB_ALERT: An automated job-listing digest or alert, e.g. from LinkedIn, Indeed, or similar job boards.\n- FYI: Informational email that needs no action and isn't spam (newsletters the user actually reads, receipts, confirmations unrelated to jobs, etc).\n- IGNORE: Spam, marketing, or low-value automated notifications.\n\nEmail to classify:\nFrom: {{ $json.from }}\nSubject: {{ $json.subject }}\n{{ $json._folder_hint ? 'Sender usually files under: ' + $json._folder_hint + ' (a hint only - decide from the content)\\n' : '' }}Body:\n{{ ((($json.body && $json.body.content) || $json.bodyPreview || '') + '').replace(/<[^>]+>/g, ' ').slice(0, 1500) }}\n\nRespond with:\n- category: exactly one of ACTION_NEEDED, JOB_CONFIRMATION, JOB_REJECTION, RECRUITER_REPLY, JOB_ALERT, FYI, IGNORE\n- confidence: integer 0-100, how sure you are of the category\n- summary: one tight sentence summarizing the email\n- suggested_task: a concrete next action for the user, ONLY if one clearly exists, otherwise null\n- company: the employer name if category is JOB_CONFIRMATION, JOB_REJECTION, or RECRUITER_REPLY and it's identifiable, otherwise null",
         "hasOutputParser": true
       }
     },
     {
       "id": "7559d10b-0395-4952-b4ea-ded08bffa54d",
-      "name": "Anthropic Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
       "position": [
-        80,
+        1380,
         540
       ],
       "parameters": {
         "model": {
           "__rl": true,
-          "mode": "id",
-          "value": "claude-haiku-4-5-20251001"
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
         },
         "options": {
           "temperature": 0
@@ -98,7 +99,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        320,
+        1620,
         540
       ],
       "parameters": {
@@ -112,7 +113,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        480,
+        2180,
         300
       ],
       "parameters": {
@@ -161,7 +162,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        740,
+        2440,
         300
       ],
       "parameters": {
@@ -193,7 +194,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1000,
+        2700,
         300
       ],
       "parameters": {
@@ -320,7 +321,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1300,
+        3000,
         120
       ],
       "parameters": {
@@ -344,7 +345,7 @@
             },
             {
               "key": "Email|url",
-              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || ($('Microsoft Outlook Trigger').item.json.id ? 'https://outlook.live.com/mail/0/inbox/id/' + encodeURIComponent($('Microsoft Outlook Trigger').item.json.id) : 'https://outlook.live.com/mail/0/') }}"
             }
           ]
         },
@@ -357,7 +358,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1300,
+        3000,
         -60
       ],
       "parameters": {
@@ -381,7 +382,7 @@
             },
             {
               "key": "Email|url",
-              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || ($('Microsoft Outlook Trigger').item.json.id ? 'https://outlook.live.com/mail/0/inbox/id/' + encodeURIComponent($('Microsoft Outlook Trigger').item.json.id) : 'https://outlook.live.com/mail/0/') }}"
             }
           ]
         },
@@ -394,7 +395,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1300,
+        3000,
         300
       ],
       "parameters": {
@@ -431,7 +432,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1300,
+        3000,
         480
       ],
       "parameters": {
@@ -463,7 +464,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1560,
+        3260,
         480
       ],
       "parameters": {
@@ -495,7 +496,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1820,
+        3520,
         480
       ],
       "parameters": {
@@ -527,7 +528,7 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
       "position": [
-        1560,
+        3260,
         660
       ],
       "parameters": {
@@ -567,7 +568,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1820,
+        3520,
         660
       ],
       "parameters": {
@@ -595,7 +596,7 @@
             },
             {
               "key": "Job Link|url",
-              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || '' }}"
+              "urlValue": "={{ $('Microsoft Outlook Trigger').item.json.webLink || ($('Microsoft Outlook Trigger').item.json.id ? 'https://outlook.live.com/mail/0/inbox/id/' + encodeURIComponent($('Microsoft Outlook Trigger').item.json.id) : 'https://outlook.live.com/mail/0/') }}"
             }
           ]
         },
@@ -608,7 +609,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
+        3000,
         900
       ],
       "parameters": {
@@ -625,7 +626,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1560,
+        3260,
         900
       ],
       "parameters": {
@@ -640,7 +641,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        1820,
+        3520,
         900
       ],
       "parameters": {
@@ -663,7 +664,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1820,
+        3520,
         1100
       ],
       "parameters": {
@@ -678,7 +679,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        2600,
+        4300,
         900
       ],
       "parameters": {
@@ -692,7 +693,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        2860,
+        4560,
         900
       ],
       "parameters": {
@@ -724,7 +725,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3120,
+        4820,
         900
       ],
       "parameters": {
@@ -756,12 +757,12 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.4,
       "position": [
-        2080,
+        3780,
         700
       ],
       "parameters": {
         "promptType": "define",
-        "text": "=You are processing every job listing from ONE LinkedIn job-alert digest email for a single candidate. For each listing: extract structured fields, then score fit 0-100 COMPARATIVELY against the other listings in this same batch - not in isolation.\n\nCandidate profile: YOUR_CANDIDATE_PROFILE — 1-2 sentences describing your current role, key strengths, the role types to FAVOUR and to DEMOTE, and your target location and seniority.\n\nCalibration bands - use these as anchors, not vibes:\n- 90-100: near-perfect. Consulting-to-tech bridge role, right level, London. He would regret not applying.\n- 75-89: strong. Clear bridge role worth applying to this week.\n- 60-74: plausible. Adjacent or partial fit, apply if time permits.\n- 40-59: weak. Wrong level, tangential domain, or heavy technical slant.\n- 0-39: poor. Hands-on engineering, wrong field, or far too senior.\n\nYou are scoring these listings AS A SET. Differentiate between them: no more than two listings in this batch may share the same score, and you should use the full range where the listings actually warrant it. Most job-alert listings are mediocre matches - LOW SCORES ARE THE CORRECT, EXPECTED ANSWER for them. Do not inflate scores to manufacture spread that isn't warranted by the real content - if every listing genuinely is mediocre, most scores should genuinely land in the 40-60 range. It is normal and expected for an entire batch to contain zero listings scoring 85+; report honestly, do not chase a high score.\n\nFor each listing also extract:\n- title: the job title\n- company: the hiring company name\n- location: the location as shown (e.g. city, remote/hybrid note)\n- salary_raw: the salary EXACTLY as written in the card, including its unit (e.g. \"£35K-£45K\", \"£500-£550\" which may be a day rate) - copy verbatim, do not calculate or convert anything. If no salary is mentioned, return null. NEVER invent a salary.\n- seniority: your best-guess seniority level inferred from the title alone (e.g. Entry, Associate, Mid, Senior, Lead/Manager), or null if unclear\n\nListings in this email:\n\n{{ $json.cards.map((c, i) => 'Listing ' + (i + 1) + ':\\n' + c.card_text).join('\\n\\n---\\n\\n') }}\n\nReturn one entry per listing above, in the \"listings\" array, each tagged with listing_index (1-based, matching its position above) so results can be matched back to the right listing.",
+        "text": "=You are processing every job listing from ONE LinkedIn job-alert digest email for a single candidate. For each listing: extract structured fields, then score fit 0-100 COMPARATIVELY against the other listings in this same batch - not in isolation.\n\nCandidate profile: YOUR_CANDIDATE_PROFILE — 1-2 sentences describing your current role, key strengths, the role types to FAVOUR and to DEMOTE, and your target location and seniority.\n\nCalibration bands - use these as anchors, not vibes:\n- 90-100: near-perfect and exceptionally rare (almost never awarded). Consulting-to-tech bridge role, right level, target location. You would regret not applying.\n- 75-89: strong and uncommon (at most 1 in 10 listings, and 85+ only for an unmistakable bridge role at an AI/tech company). Clear bridge role worth applying to this week.\n- 60-74: plausible. Adjacent or partial fit, apply if time permits.\n- 40-59: weak. Wrong level, tangential domain, or heavy technical slant.\n- 0-39: poor. Hands-on engineering, wrong field, or far too senior.\n\nYou are scoring these listings AS A SET. Differentiate between them: no more than two listings in this batch may share the same score, and you should use the full range where the listings actually warrant it. Most job-alert listings are mediocre matches - LOW SCORES ARE THE CORRECT, EXPECTED ANSWER for them. Do not inflate scores to manufacture spread that isn't warranted by the real content - if every listing genuinely is mediocre, most scores should genuinely land in the 40-60 range. It is normal and expected for an entire batch to contain zero listings scoring 85+; report honestly, do not chase a high score.\n\nCalibrate like a strict recruiter: a typical job-alert listing scores 50-65. Mid-level or senior roles lose 10+ points versus entry/associate; non-tech employers lose ~5. Do not give 75+ to a generic analyst, PM or support title. Rank against the batch and spread scores across the range they deserve rather than clustering. In the \"why\" field give ONE sentence that names the specific profile fact (level, domain, tools, bridge-role fit) driving the score and, where relevant, what stops it scoring higher.\n\nFor each listing also extract:\n- title: the job title\n- company: the hiring company name\n- location: the location as shown (e.g. city, remote/hybrid note)\n- salary_raw: the salary EXACTLY as written in the card, including its unit (e.g. \"£35K-£45K\", \"£500-£550\" which may be a day rate) - copy verbatim, do not calculate or convert anything. If no salary is mentioned, return null. NEVER invent a salary.\n- seniority: your best-guess seniority level inferred from the title alone (e.g. Entry, Associate, Mid, Senior, Lead/Manager), or null if unclear\n\nListings in this email:\n\n{{ $json.cards.map((c, i) => 'Listing ' + (i + 1) + ':\\n' + c.card_text).join('\\n\\n---\\n\\n') }}\n\nReturn one entry per listing above, in the \"listings\" array, each tagged with listing_index (1-based, matching its position above) so results can be matched back to the right listing.",
         "hasOutputParser": true
       }
     },
@@ -771,7 +772,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        2080,
+        3780,
         500
       ],
       "parameters": {
@@ -780,32 +781,12 @@
       }
     },
     {
-      "id": "d0929f8a-5864-489a-a1e7-ea3b79de9811",
-      "name": "Anthropic Chat Model (Alerts)",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
-      "position": [
-        2080,
-        340
-      ],
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "claude-haiku-4-5-20251001"
-        },
-        "options": {
-          "temperature": 0
-        }
-      }
-    },
-    {
       "id": "a2b4c6d8-1e3f-4a5b-8c7d-9e0f1a2b3c4d",
       "name": "Split Scored Listings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2340,
+        4040,
         900
       ],
       "parameters": {
@@ -820,13 +801,13 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3380,
+        5080,
         900
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
         "language": "javaScript",
-        "jsCode": "function normTitle(t) {\n  return (t || '').toLowerCase().replace(/\\s+/g, ' ').trim();\n}\nfunction normCompany(c) {\n  return (c || '').toLowerCase()\n    .replace(/\\b(ltd|limited|plc|group|inc|llc|co|corporation|corp)\\b\\.?/g, '')\n    .replace(/[.,]/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n// Same substring-containment rule as Split Scored Listings, so a role that\n// slipped through under one company-name variant this week still matches an\n// existing row filed under a slightly different variant last week.\nfunction companiesMatch(a, b) {\n  const na = normCompany(a), nb = normCompany(b);\n  if (!na || !nb) return false;\n  return na === nb || na.includes(nb) || nb.includes(na);\n}\n\nconst myTitle = normTitle($json.title);\n// existing_rows was carried forward from Collect Context, not looked up\n// cross-node here - avoids depending on a node executing in another branch.\nconst existing = $json.existing_rows || [];\n\nlet isDup = false;\nfor (const r of existing) {\n  if (!r.title && !r.company) continue;\n  if (normTitle(r.title) === myTitle && companiesMatch(r.company, $json.company)) {\n    isDup = true;\n    break;\n  }\n}\n\nreturn { json: { ...$json, is_near_duplicate: isDup } };\n"
+        "jsCode": "function normTitle(t) {\n  return (t || '').toLowerCase().replace(/\\s+/g, ' ').trim();\n}\nfunction normCompany(c) {\n  return (c || '').toLowerCase()\n    .replace(/\\b(ltd|limited|plc|group|inc|llc|co|corporation|corp)\\b\\.?/g, '')\n    .replace(/[.,]/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n// Same substring-containment rule as Split Scored Listings, so a role that\n// slipped through under one company-name variant this week still matches an\n// existing row filed under a slightly different variant last week.\nfunction companiesMatch(a, b) {\n  const na = normCompany(a), nb = normCompany(b);\n  if (!na || !nb) return false;\n  return na === nb || na.includes(nb) || nb.includes(na);\n}\n\n// $json here is Check Existing Job's Notion lookup (often empty), NOT the listing.\n// The listing is the current Loop Over Items batch (batchSize 1).\nconst L = $('Loop Over Items').first().json;\nconst myTitle = normTitle(L.title);\n// existing_rows was carried forward from Collect Context, not looked up\n// cross-node here - avoids depending on a node executing in another branch.\nconst existing = L.existing_rows || [];\n\nlet isDup = false;\nfor (const r of existing) {\n  if (!r.title && !r.company) continue;\n  if (normTitle(r.title) === myTitle && companiesMatch(r.company, L.company)) {\n    isDup = true;\n    break;\n  }\n}\n\nreturn { json: { ...L, is_near_duplicate: isDup } };\n"
       }
     },
     {
@@ -835,7 +816,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3640,
+        5340,
         900
       ],
       "parameters": {
@@ -867,7 +848,7 @@
       "type": "n8n-nodes-base.notion",
       "typeVersion": 2.2,
       "position": [
-        3900,
+        5600,
         900
       ],
       "parameters": {
@@ -929,6 +910,174 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "3bbfc19d-aa34-454c-8815-79fbf2123f53",
+      "name": "Sender Rules",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Sender rules (step 1 of the chain). Hard decisions for known automated senders, keyed by exact lowercase address.\n// Load your own sender map here. RULES = [category, source]; only low-risk categories (JOB_ALERT, IGNORE) belong here.\n// HINTS = the mail folder you file a sender under; a hint only, never a decision: it is passed to the Jev stage and the fallback LLM.\n// Protected categories (ACTION_NEEDED, JOB_*, RECRUITER_REPLY) never get rules.\nconst RULES = {\n  \"alerts@jobboard.example.com\": [\"JOB_ALERT\", \"map\"],\n  \"news@shop.example.com\": [\"IGNORE\", \"map\"],\n  \"promo@store.example.com\": [\"IGNORE\", \"map\"]\n};\n// Load your own sender map here.\nconst HINTS = {\n  \"billing@bank.example.com\": \"Money\",\n  \"orders@shop.example.com\": \"Orders & Deliveries\",\n  \"friend@mail.example.com\": \"INBOX - people\"\n};\n\nconst from = String($json.from || '').trim().toLowerCase();\nconst r = RULES[from];\nreturn { json: { ...$json, _rule_cat: r ? r[0] : '', _rule_source: r ? r[1] : '', _folder_hint: HINTS[from] || '' } };\n"
+      }
+    },
+    {
+      "id": "5bcbe5fa-4318-499b-989a-e7592334001b",
+      "name": "Rule Hit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        380,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cb590f81-dea9-47be-bff8-782bef3fa4e8",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json._rule_cat }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "726b2879-a59c-4efd-8978-520b31642a7c",
+      "name": "Prepare Jev",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Builds the Jev (TypeSafe) request using a generic base rulebook. Replace with a rulebook learned from your own mail.\nconst RB = {\n \"instructions\": \"Classify the email into exactly one category.\",\n \"criteria\": {\n  \"ACTION_NEEDED\": \"A non-job-search message that needs the reader to respond or act, such as replying, paying, scheduling or deciding.\",\n  \"JOB_CONFIRMATION\": \"An automated acknowledgement that a job application was received.\",\n  \"JOB_REJECTION\": \"A message that clearly declines a job application.\",\n  \"RECRUITER_REPLY\": \"A real person at a recruiter or employer writing personally to the reader: replying, reaching out or arranging a call. Not an automated notice.\",\n  \"JOB_ALERT\": \"An automated digest or alert listing job openings from a job board.\",\n  \"FYI\": \"Informational mail that needs no action and is not junk, such as newsletters the reader follows, receipts and non-job confirmations.\",\n  \"IGNORE\": \"Spam, promotions and low-value automated notifications.\"\n }\n};\nconst body = (($json.body && $json.body.content) || $json.bodyPreview || '').toString().replace(/<[^>]+>/g, ' ').slice(0, 1500);\nconst hint = $json._folder_hint ? '\\nSender usually files under: ' + $json._folder_hint + ' (a hint only, decide from the content)' : '';\nconst state = 'From: ' + ($json.from || '') + hint + '\\nSubject: ' + ($json.subject || '') + '\\nBody: ' + body;\nreturn { json: { ...$json, _jev_body: { state, model: 'jev-latest', questions: { category: { type: 'choice', instructions: RB.instructions, criteria: RB.criteria } } } } };"
+      }
+    },
+    {
+      "id": "32057a0e-f462-405a-baf1-02f69b392c3a",
+      "name": "Jev Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        420
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.typesafe.ai/v1/systemone",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._jev_body) }}",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    },
+    {
+      "id": "eb286918-8d19-45ce-93a6-f221464923eb",
+      "name": "Jev Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Jev decides only when top probability >= 0.90 AND the choice is not a protected category (those create tracker rows\n// and always go to the fallback LLM). Any Jev error / odd response = unsure.\nconst PROT = ['ACTION_NEEDED','JOB_REJECTION','RECRUITER_REPLY','JOB_CONFIRMATION'];\nconst email = { ...$('Prepare Jev').item.json }; delete email._jev_body;\nlet cat = '', p = 0;\ntry {\n  const a = $json.answers.category;\n  p = Math.max(...Object.values(a.probabilities));\n  cat = a.choice;\n} catch (e) { cat = ''; }\nconst handled = !!cat && p >= 0.90 && !PROT.includes(cat);\nreturn { json: { ...email, _jev_cat: handled ? cat : '', _jev_p: p, _jev_handled: handled } };"
+      }
+    },
+    {
+      "id": "f8414455-5040-45da-8996-f19136e9f4f2",
+      "name": "Jev Handled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ff877e55-8e9a-4fe2-a31d-84f0f82fcbb4",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json._jev_handled }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "050ae05a-61a0-482d-b140-bbe8b98aba78",
+      "name": "Classify Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalizer: keeps the old LLM-chain contract ({ output: {category, confidence, summary, suggested_task, company} })\n// so every $('Classify Email').item.json.output.* downstream keeps working. decided_by = rule | jev | fallback.\nif ($json.output) return { json: { output: $json.output, decided_by: 'fallback' } };\nconst byRule = !!$json._rule_cat;\nreturn { json: {\n  output: {\n    category: byRule ? $json._rule_cat : $json._jev_cat,\n    confidence: byRule ? 100 : Math.round(($json._jev_p || 0) * 100),\n    summary: $json.subject || '(no subject)',\n    suggested_task: null,\n    company: null\n  },\n  decided_by: byRule ? 'rule' : 'jev',\n  rule_source: byRule ? ($json._rule_source || 'learned') : undefined\n} };"
+      }
+    },
+    {
+      "id": "d0929f8a-5864-489a-a1e7-ea3b79de9811",
+      "name": "OpenAI Chat Model (Alerts)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3780,
+        340
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0
+        }
+      }
     }
   ],
   "connections": {
@@ -937,50 +1086,6 @@
         [
           {
             "node": "Skip Digest Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Skip Digest Email": {
-      "main": [
-        [
-          {
-            "node": "Classify Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Anthropic Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Classify Email",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Structured Output Parser": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Classify Email",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Classify Email": {
-      "main": [
-        [
-          {
-            "node": "Log to Email Metrics",
             "type": "main",
             "index": 0
           }
@@ -1236,23 +1341,158 @@
         ]
       ]
     },
-    "Anthropic Chat Model (Alerts)": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Score All Listings",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Score All Listings Output Parser": {
       "ai_outputParser": [
         [
           {
             "node": "Score All Listings",
             "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Sender Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender Rules": {
+      "main": [
+        [
+          {
+            "node": "Rule Hit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule Hit?": {
+      "main": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Jev",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Jev": {
+      "main": [
+        [
+          {
+            "node": "Jev Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jev Classify": {
+      "main": [
+        [
+          {
+            "node": "Jev Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jev Decide": {
+      "main": [
+        [
+          {
+            "node": "Jev Handled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jev Handled?": {
+      "main": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Classify": {
+      "main": [
+        [
+          {
+            "node": "Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Fallback Classify",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Fallback Classify",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Email Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (Alerts)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score All Listings",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]

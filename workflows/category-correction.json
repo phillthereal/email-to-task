@@ -1,0 +1,242 @@
+{
+  "name": "Category Correction",
+  "nodes": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "category-fix",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "20e78959-26ec-4461-87e8-bb19d4dd843b"
+    },
+    {
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const CATS = 'IGNORE,FYI,JOB_ALERT,ACTION_NEEDED,JOB_REJECTION,RECRUITER_REPLY,JOB_CONFIRMATION'.split(',');\nconst q = $input.first().json.query || {};\nconst cat = String(q.cat || '').trim();\nconst row = String(q.row || '').trim().replace(/-/g, '');\nconst page = (icon, color, title, msg) => `<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>${title}</title></head><body style=\"margin:0;padding:48px 20px;background:#f9fafb;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;\"><div style=\"max-width:420px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;padding:28px;text-align:center;\"><div style=\"font-size:34px;line-height:1;\">${icon}</div><div style=\"font-size:18px;font-weight:700;color:${color};margin-top:12px;\">${title}</div><div style=\"font-size:14px;color:#4b5563;margin-top:10px;line-height:1.5;\">${msg}</div></div></body></html>`;\nif (!/^[0-9a-f]{32}$/i.test(row) || !CATS.includes(cat)) {\n  return [{ json: { ok: false, status: 400, html: page('&#9888;&#65039;', '#b45309', 'Link not valid', 'That link had a missing or invalid row id or category, so nothing was changed. Fix the category in the Email Metrics Log in Notion by hand.') } }];\n}\nreturn [{ json: { ok: true, row, cat } }];"
+      },
+      "id": "a9abe4eb-23d8-434d-b97d-b9fd783fe6b5"
+    },
+    {
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -60,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "61faf719-ff6c-4c07-9fc6-af8283a479ad"
+    },
+    {
+      "name": "Get Metrics Row",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "get",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $(\"Validate Request\").first().json.row }}"
+        },
+        "simple": true
+      },
+      "id": "a5e528c8-7459-43cc-b314-7dc43b561573"
+    },
+    {
+      "name": "Update Metrics Row",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        380,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $(\"Validate Request\").first().json.row }}"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Category|select",
+              "selectValue": "={{ $(\"Validate Request\").first().json.cat }}"
+            },
+            {
+              "key": "Corrected|checkbox",
+              "checkboxValue": true
+            },
+            {
+              "key": "Corrected From|rich_text",
+              "textContent": "={{ $('Get Metrics Row').first().json.property_corrected_from || $('Get Metrics Row').first().json.property_category || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ad7ab750-3f85-47d7-8d84-fc77493ee046"
+    },
+    {
+      "name": "Build Result Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        120
+      ],
+      "parameters": {
+        "jsCode": "const v = $('Validate Request').first().json;\nconst upd = $('Update Metrics Row').first().json;\nconst page = (icon, color, title, msg) => `<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>${title}</title></head><body style=\"margin:0;padding:48px 20px;background:#f9fafb;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;\"><div style=\"max-width:420px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;padding:28px;text-align:center;\"><div style=\"font-size:34px;line-height:1;\">${icon}</div><div style=\"font-size:18px;font-weight:700;color:${color};margin-top:12px;\">${title}</div><div style=\"font-size:14px;color:#4b5563;margin-top:10px;line-height:1.5;\">${msg}</div></div></body></html>`;\nif (!upd || upd.error || !upd.id) {\n  return [{ json: { status: 502, html: page('&#9888;&#65039;', '#b91c1c', 'Could not update', 'Notion did not accept the change (wrong row id, or Notion is unreachable). Nothing was confirmed. Fix it in the Email Metrics Log by hand.') } }];\n}\nconst label = v.cat.replace(/_/g, ' ').toLowerCase();\nreturn [{ json: { status: 200, html: page('&#9989;', '#15803d', 'Category corrected', 'Marked as <b>' + label + '</b>. Thanks &mdash; this becomes a trusted training label. You can close this tab.') } }];"
+      },
+      "id": "e718b506-0a29-4885-94db-7ce505f60be4"
+    },
+    {
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cfdd1c59-2dab-4566-9bab-734a725c47cb"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Get Metrics Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Metrics Row": {
+      "main": [
+        [
+          {
+            "node": "Update Metrics Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Metrics Row": {
+      "main": [
+        [
+          {
+            "node": "Build Result Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Page": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London"
+  }
+}
