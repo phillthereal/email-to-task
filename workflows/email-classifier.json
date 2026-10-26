@@ -144,6 +144,10 @@
               "textContent": "={{ $json.output.suggested_task || '' }}"
             },
             {
+              "key": "Decided By|select",
+              "selectValue": "={{ $json.decided_by }}"
+            },
+            {
               "key": "Corrected|checkbox",
               "checkboxValue": false
             },
