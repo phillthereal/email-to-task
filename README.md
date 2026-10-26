@@ -44,7 +44,7 @@ Pre-release numbers (aggregates only): rules + decision model handled 62% of uns
 | Database | Key properties |
 |---|---|
 | Job Application Tracker | Company (title), Role, Status (select), Applied Date, Outreach Sent, Reply Received (dates), Job Link, Notes |
-| Email Metrics Log | Summary (title), Timestamp, Category, Confidence, Suggested Task, Corrected, Auto-filed |
+| Email Metrics Log | Summary (title), Timestamp, Category, Confidence, Suggested Task, Decided By (select: `rule`/`jev`/`fallback`), Corrected, Auto-filed |
 | Job Search Tasks | Task (title), Date, Done, Company, Notes |
 | Daily Planner | Tasks (title), Date, Category (select, includes `Email`), Priority Level, Done, Notes |
 | Job Opportunities | Job (title), Company, Location, Salary (text, blank when not stated), Fit Score (number 0-100), Why, URL, Job ID, Source (select), Seniority, Status (select: `New`/`Shortlisted`/`Applied`/`Dismissed`), First Seen (date) |
